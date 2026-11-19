@@ -5,6 +5,8 @@
 не используются Tilda, Wix, конструкторы приложений, low-code и no-code платформы.
 Сторонние пакеты не нужны — только стандартная библиотека Python.
 
+**Репозиторий на GitHub:** https://github.com/egorloginov7/habit_tracker
+
 Автор: **Логинов Егор Андреевич**, группа **22о**, телефон **+375298313240**.
 
 ## Быстрый запуск
@@ -117,6 +119,11 @@ CSV пишется в UTF-8 с BOM и разделителем `;`, поэтом
 в папку `backups/`.
 
 ## Git для защиты
+
+Репозиторий: `https://github.com/egorloginov7/habit_tracker`. Ветки: `main`
+и `feature/search-and-filters` (слита через `merge --no-ff`), также в истории
+есть пара коммитов `Demo: add temporary note...` и `Revert "Demo: ..."` —
+демонстрация отката.
 
 ```bash
 # История коммитов
