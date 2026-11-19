@@ -344,13 +344,18 @@ def action_logs_list(search="", user_id=0, limit=200):
 
 # --- Сквозной поиск ------------------------------------------------------
 
+def normalize_search_text(text):
+    """Привести поисковую строку к единому виду: обрезка + нижний регистр."""
+    return (text or "").strip().lower()
+
+
 def global_search(text, is_admin=False):
     """Искать одновременно в привычках, целях, справочниках и (для админа)
     пользователях и журнале. Возвращает список для перехода."""
-    text = (text or "").strip()
+    text = normalize_search_text(text)
     if len(text) < 2:
         return []
-    like = f"%{text.lower()}%"
+    like = f"%{text}%"
     found = []
 
     for row in habits_list(0, search=text, all_users=True):
