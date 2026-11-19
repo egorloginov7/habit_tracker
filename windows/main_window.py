@@ -50,6 +50,7 @@ class MainWindow(tk.Tk):
         self._admin_window = None
         self.current_page = "Главная"
         self._indicator_y = 90
+        self._alive = True
 
         self.title("Трекер привычек и целей")
         self.geometry("1180x720")
@@ -215,10 +216,14 @@ class MainWindow(tk.Tk):
         self._clock.pack(side="right", padx=16)
 
     def _tick_clock(self):
+        if not self._alive:
+            return
         self._clock.configure(text=datetime.datetime.now().strftime("%d.%m.%Y  %H:%M:%S"))
         self.after(1000, self._tick_clock)
 
     def _tick_ticker(self):
+        if not self._alive:
+            return
         # AUTOMATIC background-like animation in the main window footer
         self._ticker_text = self._ticker_text[1:] + self._ticker_text[0]
         self._ticker.configure(text=self._ticker_text[:70])
@@ -303,7 +308,7 @@ class MainWindow(tk.Tk):
                 "Поиск", "Введите минимум 2 символа для сквозного поиска", parent=self,
             )
             return
-        results = services.global_search(text, self.is_admin)
+        results = services.global_search(text, self.is_admin, self.user["id"])
         db.log_action(self.user["id"], "Поиск", f"Запрос: {text}; найдено: {len(results)}")
         SearchResults(
             self, text, results,
@@ -314,7 +319,7 @@ class MainWindow(tk.Tk):
         target = item["page"]
         if target in ("Администрирование", "Журнал действий"):
             tab = "Журнал действий" if target == "Журнал действий" else None
-            self.open_admin(tab)
+            self.open_admin(tab, record_id=item["id"], page=target)
             return
         self.navigate(target, item["title"][:28])
         page = self._pages.get(target)
@@ -323,14 +328,16 @@ class MainWindow(tk.Tk):
 
     # --- Администрирование ---
 
-    def open_admin(self, tab=None):
+    def open_admin(self, tab=None, record_id=None, page=None):
         """Открыть окно №3 или вывести уже открытое на передний план."""
         if not self.is_admin:
             messagebox.showwarning("Права доступа", "Только для администратора", parent=self)
             return
         if self._admin_window is not None and self._admin_window.winfo_exists():
             self._admin_window.lift()
-            if tab:
+            if record_id is not None:
+                self._admin_window.focus_record(record_id, page=page)
+            elif tab:
                 self._admin_window.select_tab(tab)
             return
 
@@ -341,6 +348,13 @@ class MainWindow(tk.Tk):
         self._admin_window = AdminWindow(
             self, self.user, initial_tab=tab, on_close=on_close,
         )
+        if record_id is not None:
+            # Окно ещё анимирует открытие — перейти к записи после анимации.
+            self.after(300, lambda: (
+                self._admin_window.focus_record(record_id, page=page)
+                if self._admin_window is not None
+                and self._admin_window.winfo_exists() else None
+            ))
 
     # --- Выход ---
 
@@ -350,5 +364,12 @@ class MainWindow(tk.Tk):
         ):
             return
         db.log_action(self.user["id"], "Выход из системы", "Завершение сеанса")
+        self._alive = False
+        for page in self._pages.values():
+            hero = getattr(page, "_hero", None)
+            if hero is not None:
+                hero.stop()
+        if self._admin_window is not None and self._admin_window.winfo_exists():
+            self._admin_window.destroy()
         self.destroy()
         self._on_logout()

@@ -100,15 +100,17 @@ class AnimatedButton(tk.Button):
 
     def _on_leave(self):
         self._inside = False
-        self.configure(relief="flat")
+        # Не трогаем relief: им управляет классовая привязка Tk
+        # (tk::ButtonEnter / tk::ButtonLeave).
         self._animate(self._base)
 
     def _on_press(self):
-        self.configure(relief="sunken", bd=1)
-        self._animate(self._press, 90, 4)  # быстрое «нажатие»
+        # ВАЖНО: нельзя менять bd/relief — это меняет геометрию кнопки.
+        # Tk решит, что указатель покинул кнопку (Priv(window)), и тогда
+        # tk::ButtonUp НЕ вызовет command. Нажатие анимируем только цветом.
+        self._animate(self._press, 90, 4)
 
     def _on_release(self):
-        self.configure(relief="flat", bd=0)
         self._animate(self._hover if self._inside else self._base, 180)
 
 

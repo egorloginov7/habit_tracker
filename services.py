@@ -349,22 +349,27 @@ def normalize_search_text(text):
     return (text or "").strip().lower()
 
 
-def global_search(text, is_admin=False):
+def global_search(text, is_admin=False, user_id=None):
     """Искать одновременно в привычках, целях, справочниках и (для админа)
-    пользователях и журнале. Возвращает список для перехода."""
+    пользователях и журнале. Возвращает список для перехода.
+
+    Обычный пользователь видит только свои записи: раньше поиск выполнялся
+    с all_users=True для всех, из-за чего в результатах появлялись чужие
+    привычки и цели, перейти к которым было невозможно.
+    """
     text = normalize_search_text(text)
     if len(text) < 2:
         return []
     like = f"%{text}%"
     found = []
 
-    for row in habits_list(0, search=text, all_users=True):
+    for row in habits_list(user_id or 0, search=text, all_users=is_admin):
         found.append({
             "type": "Привычка", "title": row["name"],
             "subtitle": row["category_name"] + " · " + (row["username"] or ""),
             "page": "Привычки", "id": row["id"],
         })
-    for row in goals_list(0, search=text, all_users=True):
+    for row in goals_list(user_id or 0, search=text, all_users=is_admin):
         found.append({
             "type": "Цель", "title": row["title"],
             "subtitle": f"{row['category_name']} · {row['progress']}%",

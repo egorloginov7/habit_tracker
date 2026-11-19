@@ -194,6 +194,8 @@ class GoalsPage(tk.Frame):
             return
         row = self._rows.get(int(selection[0]))
         if row is None:
+            self._progress_label.configure(text="Выберите цель")
+            self._progress_bar.set(0)
             return
         percent = row["progress"]
         self._progress_label.configure(text=f"{row['title'][:34]} — {percent}%")

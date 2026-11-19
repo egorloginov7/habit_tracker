@@ -342,8 +342,10 @@ class AdminWindow(tk.Toplevel):
 
         self._data_search = self._search_entry(bar, width=16)
         AnimatedButton(bar, text="Найти", command=self._load_data, size=9).pack(side="left")
-        AnimatedButton(bar, text="Изменить", command=self._edit_data, size=9).pack(
+        AnimatedButton(bar, text="Добавить", command=self._add_data, size=9).pack(
             side="left", padx=(12, 0))
+        AnimatedButton(bar, text="Изменить", command=self._edit_data, size=9).pack(
+            side="left", padx=(8, 0))
         AnimatedButton(
             bar, text="Удалить", command=self._delete_data, size=9,
             color=theme.DANGER, hover=theme.DANGER_HOVER, press="#991B1B",
@@ -378,6 +380,44 @@ class AdminWindow(tk.Toplevel):
                     row["id"], row["username"], row["title"],
                     row["category_name"], f"{row['progress']}% · {row['deadline']}",
                 ))
+
+    def _add_data(self):
+        """Создать привычку или цель для выбранного пользователя.
+
+        Раньше во вкладке «Данные» можно было только редактировать и удалять
+        существующие записи — добавить цель пользователю было невозможно.
+        """
+        owner_id = self._data_user_map.get(self._data_user.get(), 0)
+        if not owner_id:
+            messagebox.showinfo(
+                "Данные",
+                "Выберите владельца (пользователя) в фильтре выше, "
+                "затем нажмите «Добавить»",
+                parent=self,
+            )
+            return
+
+        is_habit = self._data_type.get() == "Привычки"
+        dialog = HabitDialog(self) if is_habit else GoalDialog(self)
+        self.wait_window(dialog)
+        if not dialog.result:
+            return
+        data = dialog.result
+        if is_habit:
+            services.add_habit(
+                owner_id, data["category_id"], data["name"], data["description"]
+            )
+            name = data["name"]
+            action = "Добавление привычки (админ)"
+        else:
+            services.add_goal(
+                owner_id, data["category_id"], data["title"],
+                data["description"], data["target_value"], data["deadline"],
+            )
+            name = data["title"]
+            action = "Добавление цели (админ)"
+        db.log_action(self._admin["id"], action, f"{name} · пользователь №{owner_id}")
+        self._load_data()
 
     def _edit_data(self):
         selected = self._data_tree.selection()
@@ -489,39 +529,61 @@ class AdminWindow(tk.Toplevel):
         }[name]()
         db.log_action(self._admin["id"], "Открыта вкладка админки", name)
 
-    def focus_record(self, record_id):
-        """Перейти к записи из сквозного поиска."""
-        target = TABS[0]
-        for tab in (TABS[0], TABS[1], TABS[3]):
-            tree = {
-                TABS[0]: self._user_tree,
-                TABS[1]: self._category_tree,
-                TABS[3]: self._log_tree,
-            }[tab]
-            if tree.exists(str(record_id)):
-                target = tab
+    def focus_record(self, record_id, page=None):
+        """Перейти к записи из сквозного поиска.
+
+        Таблицы неактивных вкладок изначально пусты, поэтому их нужно
+        сначала загрузить — иначе переход из поиска никогда не срабатывал.
+        """
+        self._load_users()
+        self._load_categories()
+        self._load_logs()
+        candidates = [
+            (TABS[0], self._user_tree),
+            (TABS[1], self._category_tree),
+            (TABS[3], self._log_tree),
+        ]
+        if page == "Журнал действий":
+            candidates = [(TABS[3], self._log_tree)]
+        elif page == "Администрирование":
+            candidates = [(TABS[0], self._user_tree), (TABS[1], self._category_tree)]
+
+        key = str(record_id)
+        target, tree = candidates[0]
+        for tab, candidate in candidates:
+            if candidate.exists(key):
+                target, tree = tab, candidate
                 break
         self.select_tab(target)
-        tree = {
-            TABS[0]: self._user_tree, TABS[1]: self._category_tree,
-            TABS[3]: self._log_tree,
-        }[target]
-        if tree.exists(str(record_id)):
-            tree.selection_set(str(record_id))
-            tree.focus(str(record_id))
+        if tree.exists(key):
+            tree.selection_set(key)
+            tree.focus(key)
+            tree.see(key)
 
     def _animate_open(self):
         """Окно «вырастает» до полного размера — анимация появления."""
         width, height = 440, 300
         target_w, target_h = self._final_size
         steps = 10
+        self._open_jobs = []
         for step in range(1, steps + 1):
             t = step / steps
             w = round(width + (target_w - width) * t)
             h = round(height + (target_h - height) * t)
-            self.after(step * 22, lambda w=w, h=h: self.geometry(f"{w}x{h}"))
+            job = self.after(step * 22, lambda w=w, h=h: self._apply_open_size(w, h))
+            self._open_jobs.append(job)
+
+    def _apply_open_size(self, width, height):
+        if not self.winfo_exists():
+            return
+        self.geometry(f"{width}x{height}")
 
     def _close(self):
+        for job in getattr(self, "_open_jobs", []):
+            try:
+                self.after_cancel(job)
+            except (ValueError, tk.TclError):
+                pass
         if self._on_close:
             self._on_close()
         self.destroy()

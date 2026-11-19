@@ -65,7 +65,9 @@ def require_password(value):
 
 def require_int(value, field, minimum, maximum):
     """Целое число в заданном диапазоне."""
-    text = str(value or "").strip()
+    # 0 — корректное значение (например, прогресс 0%), поэтому нельзя
+    # пользоваться `value or ""`: нуль является falsy и превращался бы в "".
+    text = str(value if value is not None else "").strip()
     try:
         number = int(text)
     except ValueError:
